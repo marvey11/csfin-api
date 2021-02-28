@@ -5,7 +5,7 @@
   "port": 3306,
   "username": "codescape",
   "password": "codescape",
-  "database": "test",
+  "database": "financial",
   "synchronize": true,
   "entities": ["src/entities/*.entity.ts"]
 }

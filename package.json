@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "@codescape-template/rest-api",
+  "name": "@codescape-financial/api",
   "version": "1.0.0",
   "author": {
     "name": "Marco Wegner",
