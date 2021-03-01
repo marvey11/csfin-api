@@ -6,7 +6,7 @@ class SecuritiesExchange {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @Column()
+    @Column({unique: true})
     @IsString()
     name!: string;
 }
