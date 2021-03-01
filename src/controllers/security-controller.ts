@@ -18,10 +18,10 @@ class SecurityController {
         return response.status(StatusCodes.OK).send(securities);
     }
 
-    @Get("/security/:id")
-    async getOne(@Param("id") id: number, @Res() response: Response): Promise<Response> {
+    @Get("/security/:isin")
+    async getOne(@Param("isin") isin: string, @Res() response: Response): Promise<Response> {
         try {
-            const s: Security = await this.service.getOne(id);
+            const s: Security = await this.service.getOne({ isin: isin });
             return response.status(StatusCodes.OK).send(s);
         } catch (error) {
             return response.status(StatusCodes.BAD_REQUEST).send({ message: error.message });
@@ -45,16 +45,16 @@ class SecurityController {
         }
     }
 
-    @Put("/security/:id")
+    @Put("/security/:isin")
     async update(
-        @Param("id") id: number,
+        @Param("isin") isin: string,
         @Body({ required: true }) data: CreateSecurityRequest,
         @Res() response: Response
     ): Promise<Response> {
         try {
-            const s = await this.service.update(id, data);
+            const s = await this.service.update(isin, data);
             if (s) {
-                return response.status(StatusCodes.CREATED).send({ message: "Created" });
+                return response.status(StatusCodes.NO_CONTENT).send();
             }
         } catch (error) {
             return response.status(StatusCodes.BAD_REQUEST).send({ message: error.message });

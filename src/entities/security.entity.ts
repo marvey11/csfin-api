@@ -1,5 +1,5 @@
 import { IsString, Length } from "class-validator";
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, PrimaryColumn } from "typeorm";
 
 enum SecurityType {
     STOCK = "stock",
@@ -10,10 +10,7 @@ enum SecurityType {
 
 @Entity({ name: "securities" })
 class Security {
-    @PrimaryGeneratedColumn()
-    id!: number;
-
-    @Column({ unique: true })
+    @PrimaryColumn()
     @IsString()
     @Length(12)
     isin!: string;

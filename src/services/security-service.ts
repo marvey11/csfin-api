@@ -18,13 +18,8 @@ class SecuritiesService {
         return this.repository.find();
     }
 
-    async getOne(id: number): Promise<Security>;
-    async getOne(condition: FindConditions<Security>): Promise<Security>;
-    async getOne(id_or_condition: number | FindConditions<Security>): Promise<Security> {
-        if (typeof id_or_condition == "number") {
-            return this.repository.findOneOrFail({ id: id_or_condition as number });
-        }
-        return this.repository.findOneOrFail(id_or_condition as FindConditions<Security>);
+    async getOne(condition: FindConditions<Security>): Promise<Security> {
+        return this.repository.findOneOrFail(condition);
     }
 
     async addOne(data: CreateSecurityRequest): Promise<Security> {
@@ -36,8 +31,8 @@ class SecuritiesService {
         return this.repository.save(security);
     }
 
-    async update(securityID: number, data: CreateSecurityRequest): Promise<Security> {
-        return this.getOne(securityID).then((s: Security) => {
+    async update(isin: string, data: CreateSecurityRequest): Promise<Security> {
+        return this.getOne({ isin: isin }).then((s: Security) => {
             s.isin = data.isin;
             s.nsin = data.nsin;
             s.name = data.name;
