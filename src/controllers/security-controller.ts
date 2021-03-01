@@ -7,7 +7,7 @@ import { CreateSecurityRequest } from "../dtos";
 import { Security } from "../entities";
 import { SecuritiesService } from "../services";
 
-@Service() // apparently necessary with typedi > 0.8.0
+@Service() // <-- apparently necessary with typedi > 0.8.0
 @JsonController()
 class SecurityController {
     constructor(private service: SecuritiesService) {}

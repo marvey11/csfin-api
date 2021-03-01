@@ -9,12 +9,12 @@ class AddQuoteDataRequest {
 
     @IsArray()
     @IsObject({ each: true })
-    quoteData: Array<{ date: Date; value: number }>;
+    quotes: { date: Date; quote: number }[];
 
-    constructor(isin: string, exchangeID: number, data: Array<{ date: Date; value: number }>) {
+    constructor(isin: string, exchangeID: number, data: { date: Date; quote: number }[]) {
         this.isin = isin;
         this.exchangeID = exchangeID;
-        this.quoteData = data;
+        this.quotes = data;
     }
 }
 
