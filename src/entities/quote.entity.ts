@@ -8,10 +8,10 @@ class QuoteData {
     @PrimaryGeneratedColumn()
     id!: number;
 
-    @Column()
+    @Column({type:"date"})
     date!: Date;
 
-    @Column()
+    @Column({type: "float"})
     quote!: number;
 
     @ManyToOne(() => Security, (security) => security.quotes)

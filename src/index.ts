@@ -9,7 +9,7 @@ import { useContainer, useExpressServer } from "routing-controllers";
 import { Container } from "typedi";
 import { createConnection } from "typeorm";
 
-import { ExchangeController, SecurityController } from "./controllers";
+import { ExchangeController, QuoteDataController, SecurityController } from "./controllers";
 
 const connectionName = config.get("ormconfig.connection") as string;
 createConnection(connectionName)
@@ -24,7 +24,7 @@ createConnection(connectionName)
             routePrefix: "/api",
             classTransformer: true,
             validation: true,
-            controllers: [ExchangeController, SecurityController]
+            controllers: [ExchangeController, QuoteDataController, SecurityController]
         });
 
         const port = config.get("express.port") as number;
