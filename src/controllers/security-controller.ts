@@ -27,22 +27,18 @@ class SecurityController {
             return response.status(StatusCodes.BAD_REQUEST).send({ message: error.message });
         }
     }
+
     @Post("/security")
     async addOne(@Body({ required: true }) data: CreateSecurityRequest, @Res() response: Response): Promise<Response> {
-        try {
-            const s: Security = await this.service.addOne(data);
-            return response.status(StatusCodes.OK).send(s);
-        } catch (error) {
-            const msg: string = error.message || "";
+        const s: Security | undefined = await this.service.addOne(data);
 
-            if (msg.startsWith("ER_DUP_ENTRY")) {
-                return response
-                    .status(StatusCodes.CONFLICT)
-                    .send({ message: `An item with ISIN ${data.isin} is already in the database.` });
-            }
-
-            return response.status(StatusCodes.BAD_REQUEST).send({ message: msg });
+        if (s) {
+            return response.status(StatusCodes.CREATED).send(s);
         }
+
+        return response
+            .status(StatusCodes.CONFLICT)
+            .send({ message: `An item with ISIN ${data.isin} is already in the database.` });
     }
 
     @Put("/security/:isin")
