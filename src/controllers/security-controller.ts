@@ -29,8 +29,20 @@ class SecurityController {
     }
     @Post("/security")
     async addOne(@Body({ required: true }) data: CreateSecurityRequest, @Res() response: Response): Promise<Response> {
-        const s: Security = await this.service.addOne(data);
-        return response.status(StatusCodes.OK).send(s);
+        try {
+            const s: Security = await this.service.addOne(data);
+            return response.status(StatusCodes.OK).send(s);
+        } catch (error) {
+            const msg: string = error.message || "";
+
+            if (msg.startsWith("ER_DUP_ENTRY")) {
+                return response
+                    .status(StatusCodes.CONFLICT)
+                    .send({ message: `An item with ISIN ${data.isin} is already in the database.` });
+            }
+
+            return response.status(StatusCodes.BAD_REQUEST).send({ message: msg });
+        }
     }
 
     @Put("/security/:id")
