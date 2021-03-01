@@ -18,26 +18,35 @@ class SecuritiesService {
         return this.repository.find();
     }
 
-    async getOne(id: number): Promise<Security>;
-    async getOne(condition: FindConditions<Security>): Promise<Security>;
-    async getOne(id_or_condition: number | FindConditions<Security>): Promise<Security> {
-        if (typeof id_or_condition == "number") {
-            return this.repository.findOneOrFail({ id: id_or_condition as number });
-        }
-        return this.repository.findOneOrFail(id_or_condition as FindConditions<Security>);
+    async getOne(condition: FindConditions<Security>): Promise<Security> {
+        return this.repository.findOneOrFail(condition);
     }
 
-    async addOne(data: CreateSecurityRequest): Promise<Security> {
-        const security: Security = this.repository.create();
-        security.nsin = data.nsin;
-        security.isin = data.isin;
-        security.name = data.name;
-        security.type = data.type;
-        return this.repository.save(security);
+    /**
+     * Adds a single security to the database.
+     *
+     * @param data The DTO containing the data for the security to be added.
+     *
+     * @returns The newly created instance if adding the security was successful, or `undefined` if a
+     * security item with the same ISIN already exists (in that case `update()` should be called.)
+     */
+    async addOne(data: CreateSecurityRequest): Promise<Security | undefined> {
+        return this.getOne({ isin: data.isin })
+            .then(() => {
+                return undefined;
+            })
+            .catch(() => {
+                const security: Security = this.repository.create();
+                security.isin = data.isin;
+                security.nsin = data.nsin;
+                security.name = data.name;
+                security.type = data.type;
+                return this.repository.save(security);
+            });
     }
 
-    async update(securityID: number, data: CreateSecurityRequest): Promise<Security> {
-        return this.getOne(securityID).then((s: Security) => {
+    async update(isin: string, data: CreateSecurityRequest): Promise<Security> {
+        return this.getOne({ isin: isin }).then((s: Security) => {
             s.isin = data.isin;
             s.nsin = data.nsin;
             s.name = data.name;
