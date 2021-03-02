@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { Body, Get, JsonController, Param, Post, Put, Res } from "routing-controllers";
+import { Body, Get, JsonController, Param, Post, Res } from "routing-controllers";
 import { Service } from "typedi";
 
 import { CreateSecurityRequest } from "../dtos";
@@ -29,34 +29,16 @@ class SecurityController {
     }
 
     @Post("/security")
-    async addOne(@Body({ required: true }) data: CreateSecurityRequest, @Res() response: Response): Promise<Response> {
-        const s: Security | undefined = await this.service.addOne(data);
-
-        if (s) {
-            return response.status(StatusCodes.CREATED).send(s);
-        }
-
-        return response
-            .status(StatusCodes.CONFLICT)
-            .send({ message: `An item with ISIN ${data.isin} is already in the database.` });
-    }
-
-    @Put("/security/:isin")
-    async update(
-        @Param("isin") isin: string,
+    async addOrUpdate(
         @Body({ required: true }) data: CreateSecurityRequest,
         @Res() response: Response
     ): Promise<Response> {
         try {
-            const s = await this.service.update(isin, data);
-            if (s) {
-                return response.status(StatusCodes.NO_CONTENT).send();
-            }
+            await this.service.addOrUpdate(data);
+            return response.status(StatusCodes.NO_CONTENT).send();
         } catch (error) {
             return response.status(StatusCodes.BAD_REQUEST).send({ message: error.message });
         }
-
-        return response.status(StatusCodes.CONFLICT).send({ message: "Security could not be updated" });
     }
 }
 
