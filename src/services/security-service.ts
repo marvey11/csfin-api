@@ -1,7 +1,7 @@
 import config from "config";
 
 import { Service } from "typedi";
-import { FindConditions, getRepository, Repository } from "typeorm";
+import { FindConditions, getRepository, InsertResult, Repository } from "typeorm";
 
 import { CreateSecurityRequest } from "../dtos";
 import { Security } from "../entities";
@@ -23,36 +23,25 @@ class SecuritiesService {
     }
 
     /**
-     * Adds a single security to the database.
+     * Adds a security to the database (or tries to update it in case there is already an entry with the same ISIN).
      *
      * @param data The DTO containing the data for the security to be added.
      *
-     * @returns The newly created instance if adding the security was successful, or `undefined` if a
-     * security item with the same ISIN already exists (in that case `update()` should be called.)
+     * @returns An InsertResponse object.
      */
-    async addOne(data: CreateSecurityRequest): Promise<Security | undefined> {
-        return this.getOne({ isin: data.isin })
-            .then(() => {
-                return undefined;
-            })
-            .catch(() => {
-                const security: Security = this.repository.create();
-                security.isin = data.isin;
-                security.nsin = data.nsin;
-                security.name = data.name;
-                security.type = data.type;
-                return this.repository.save(security);
-            });
-    }
+    async addOrUpdate(data: CreateSecurityRequest): Promise<InsertResult> {
+        const security: Security = this.repository.create();
+        security.isin = data.isin;
+        security.nsin = data.nsin;
+        security.name = data.name;
+        security.type = data.type;
 
-    async update(isin: string, data: CreateSecurityRequest): Promise<Security> {
-        return this.getOne({ isin: isin }).then((s: Security) => {
-            s.isin = data.isin;
-            s.nsin = data.nsin;
-            s.name = data.name;
-            s.type = data.type;
-            return this.repository.save(s);
-        });
+        return this.repository
+            .createQueryBuilder()
+            .insert()
+            .values(security)
+            .orUpdate({ conflict_target: ["isin"], overwrite: ["nsin", "name", "type"] })
+            .execute();
     }
 }
 
