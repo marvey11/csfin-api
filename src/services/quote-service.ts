@@ -14,6 +14,16 @@ class QuoteDataService {
         this.repository = getRepository<QuoteData>(QuoteData, config.get("ormconfig.connection"));
     }
 
+    async get(isin: string, exchangeID: number): Promise<QuoteData[]> {
+        return this.repository
+            .createQueryBuilder("quote")
+            .innerJoin("quote.security", "security")
+            .innerJoin("quote.exchange", "exchange")
+            .where("security.isin = :isin", { isin: isin })
+            .andWhere("exchange.id = :exchID", { exchID: exchangeID })
+            .getMany();
+    }
+
     async add(data: AddQuoteDataRequest): Promise<void> {
         return this.securityService.getOne({ isin: data.isin }).then((security: Security) => {
             return this.exchangeService.getOne(data.exchangeID).then((exchange: SecuritiesExchange) => {
@@ -34,7 +44,7 @@ class QuoteDataService {
                 /*
                  * Insert or update the entities in the list.
                  *
-                 * found here: https://github.com/typeorm/typeorm/issues/1090#issuecomment-634391487
+                 * Found here: https://github.com/typeorm/typeorm/issues/1090#issuecomment-634391487
                  *
                  * Works since we made the date, security, and exchange columns a unique combination in the entity.
                  */
