@@ -1,5 +1,7 @@
 import { IsString, Length } from "class-validator";
-import { Column, Entity, PrimaryGeneratedColumn, Unique } from "typeorm";
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn, Unique } from "typeorm";
+
+import { QuoteData } from "./quote.entity";
 
 enum SecurityType {
     STOCK = "stock",
@@ -32,6 +34,9 @@ class Security {
         enum: SecurityType
     })
     type!: SecurityType;
+
+    @OneToMany(() => QuoteData, (quote) => quote.security)
+    quotes!: QuoteData[];
 }
 
 export { Security, SecurityType };
