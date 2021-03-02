@@ -14,14 +14,38 @@ class QuoteDataService {
         this.repository = getRepository<QuoteData>(QuoteData, config.get("ormconfig.connection"));
     }
 
-    async get(isin: string, exchangeID: number): Promise<QuoteData[]> {
-        return this.repository
+    async get(isin: string, exchangeID: number, startDate?: string, endDate?: string): Promise<QuoteData[]> {
+        const query = this.repository
             .createQueryBuilder("quote")
             .innerJoin("quote.security", "security")
             .innerJoin("quote.exchange", "exchange")
             .where("security.isin = :isin", { isin: isin })
-            .andWhere("exchange.id = :exchID", { exchID: exchangeID })
-            .getMany();
+            .andWhere("exchange.id = :exchID", { exchID: exchangeID });
+
+        if (startDate) {
+            const startTimeStamp: number = Date.parse(startDate);
+            if (!isNaN(startTimeStamp)) {
+                // checking the end date makes only sense if the start date is already valid
+                // --> we initialise it with the current date
+                let end: Date = new Date();
+                if (endDate) {
+                    // if the end date was actually set in the query params, try parsing it
+                    const endTimeStamp: number = Date.parse(endDate);
+                    if (!isNaN(endTimeStamp)) {
+                        // if it's a valid date, then overwrite the original value
+                        // ... otherwise it remains the current date from above
+                        end = new Date(endTimeStamp);
+                    }
+                }
+
+                query.andWhere("quote.date BETWEEN :start AND :end", {
+                    start: new Date(startTimeStamp).toISOString(),
+                    end: end.toISOString()
+                });
+            }
+        }
+
+        return query.getMany();
     }
 
     async add(data: AddQuoteDataRequest): Promise<void> {
