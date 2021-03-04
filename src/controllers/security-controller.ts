@@ -28,9 +28,9 @@ class SecurityController {
         }
     }
 
-    @Post("/security")
+    @Post("/securities")
     async addOrUpdate(
-        @Body({ required: true }) data: CreateSecurityRequest,
+        @Body({ required: true }) data: CreateSecurityRequest | CreateSecurityRequest[],
         @Res() response: Response
     ): Promise<Response> {
         try {

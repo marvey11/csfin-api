@@ -23,25 +23,38 @@ class SecuritiesService {
     }
 
     /**
-     * Adds a security to the database (or tries to update it in case there is already an entry with the same ISIN).
+     * Adds a security (or list of securities) to the database (or tries to update an item in case there is already
+     * one with the same ISIN).
      *
-     * @param data The DTO containing the data for the security to be added.
-     *
+     * @param data The DTO (or list of DTOs) containing the data for the security to be added.
      * @returns An InsertResponse object.
      */
-    async addOrUpdate(data: CreateSecurityRequest): Promise<InsertResult> {
+    async addOrUpdate(data: CreateSecurityRequest | CreateSecurityRequest[]): Promise<InsertResult> {
+        const result: Security | Security[] = Array.isArray(data)
+            ? data.map((req: CreateSecurityRequest) => this.toSecurity(req))
+            : this.toSecurity(data);
+
+        return this.repository
+            .createQueryBuilder()
+            .insert()
+            .values(result)
+            .orUpdate({ conflict_target: ["isin"], overwrite: ["nsin", "name", "type"] })
+            .execute();
+    }
+
+    /**
+     * Converts a create-security request to an entity.
+     *
+     * @param data A single create-security request
+     * @returns the newly created entity
+     */
+    private toSecurity(data: CreateSecurityRequest): Security {
         const security: Security = this.repository.create();
         security.isin = data.isin;
         security.nsin = data.nsin;
         security.name = data.name;
         security.type = data.type;
-
-        return this.repository
-            .createQueryBuilder()
-            .insert()
-            .values(security)
-            .orUpdate({ conflict_target: ["isin"], overwrite: ["nsin", "name", "type"] })
-            .execute();
+        return security;
     }
 }
 
