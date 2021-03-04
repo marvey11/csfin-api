@@ -1,7 +1,7 @@
 import config from "config";
 
 import { Service } from "typedi";
-import { getRepository, Repository } from "typeorm";
+import { FindConditions, getRepository, Repository } from "typeorm";
 
 import { CreateExchangeRequest } from "../dtos";
 import { SecuritiesExchange } from "../entities";
@@ -18,8 +18,13 @@ class ExchangeService {
         return this.repository.find();
     }
 
-    async getOne(id: number): Promise<SecuritiesExchange> {
-        return this.repository.findOneOrFail(id);
+    async getOne(id: number): Promise<SecuritiesExchange>;
+    async getOne(conditions: FindConditions<SecuritiesExchange>): Promise<SecuritiesExchange>;
+    async getOne(id_or_conds: number | FindConditions<SecuritiesExchange>): Promise<SecuritiesExchange> {
+        if (typeof id_or_conds == "number") {
+            return this.repository.findOneOrFail(id_or_conds as number);
+        }
+        return this.repository.findOneOrFail(id_or_conds);
     }
 
     async addOne(data: CreateExchangeRequest): Promise<SecuritiesExchange> {

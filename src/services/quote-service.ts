@@ -50,7 +50,7 @@ class QuoteDataService {
 
     async add(data: AddQuoteDataRequest): Promise<void> {
         return this.securityService.getOne({ isin: data.isin }).then((security: Security) => {
-            return this.exchangeService.getOne(data.exchangeID).then((exchange: SecuritiesExchange) => {
+            return this.exchangeService.getOne({ name: data.exchange }).then((exchange: SecuritiesExchange) => {
                 /*
                  * Creates a list of items that need to be inserted or updated. And we really don't care which at this
                  * point; we only want to make sure that the latest data is in the repository.
