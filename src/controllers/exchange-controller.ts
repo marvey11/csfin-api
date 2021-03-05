@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { Body, Get, JsonController, Param, Post, Put, Res } from "routing-controllers";
+import { Body, Get, JsonController, Param, Post, Res } from "routing-controllers";
 import { Service } from "typedi";
 
 import { CreateExchangeRequest } from "../dtos";
@@ -27,32 +27,17 @@ class ExchangeController {
         }
     }
 
-    @Post("/exchange")
-    async addOne(@Body({ required: true }) data: CreateExchangeRequest, @Res() response: Response): Promise<Response> {
-        try {
-            const e: SecuritiesExchange = await this.service.addOne(data);
-            return response.status(StatusCodes.CREATED).send(e);
-        } catch (error) {
-            return response.status(StatusCodes.CONFLICT).send(error.message);
-        }
-    }
-
-    @Put("/exchange/:id")
-    async update(
-        @Param("id") id: number,
-        @Body({ required: true }) data: CreateExchangeRequest,
+    @Post("/exchanges")
+    async addOrUpdate(
+        @Body({ required: true }) data: CreateExchangeRequest | CreateExchangeRequest[],
         @Res() response: Response
     ): Promise<Response> {
         try {
-            const e: SecuritiesExchange = await this.service.update(id, data);
-            if (e) {
-                return response.status(StatusCodes.NO_CONTENT).send();
-            }
+            await this.service.addOrUpdate(data);
+            return response.status(StatusCodes.NO_CONTENT).send();
         } catch (error) {
             return response.status(StatusCodes.BAD_REQUEST).send({ message: error.message });
         }
-
-        return response.status(StatusCodes.CONFLICT).send({ message: "Security could not be updated" });
     }
 }
 
