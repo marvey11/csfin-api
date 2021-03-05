@@ -1,7 +1,8 @@
 import { Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { Body, Get, JsonController, Params, Post, QueryParams, Res } from "routing-controllers";
+import { Body, Get, JsonController, Params, Post, QueryParam, QueryParams, Res } from "routing-controllers";
 import { Service } from "typedi";
+
 import { AddQuoteDataRequest } from "../dtos";
 import { QuoteData } from "../entities";
 import { QuoteDataService } from "../services";
@@ -35,6 +36,18 @@ class QuoteDataController {
         } catch (error) {
             return response.status(StatusCodes.BAD_REQUEST).send({ message: error.message });
         }
+    }
+
+    @Get("/quotes/count")
+    async getCount(@QueryParam("with-sum") withSum: boolean, @Res() response: Response): Promise<Response> {
+        const data = await this.service.getQuoteCount();
+
+        if (withSum) {
+            const sum = data.map((item) => Number(item.count)).reduce((a, b) => a + b, 0);
+            data.push({ isin: "ALL", exchange: "ALL", count: sum });
+        }
+
+        return response.status(StatusCodes.OK).send(data);
     }
 }
 
