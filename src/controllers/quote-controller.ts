@@ -43,7 +43,7 @@ class QuoteDataController {
         const data = await this.service.getQuoteCount();
 
         if (withSum) {
-            const sum = data.map((item) => Number(item.count)).reduce((a, b) => a + b, 0);
+            const sum = data.map((item) => item.count).reduce((a, b) => a + b, 0);
             data.push({ isin: "ALL", exchange: "ALL", count: sum });
         }
 

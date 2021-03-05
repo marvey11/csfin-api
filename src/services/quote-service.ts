@@ -91,7 +91,7 @@ class QuoteDataService {
             .groupBy("exchange.id")
             .select(["security.isin as isin", "exchange.name as exchange", "COUNT(quote.id) as count"])
             .getRawMany()
-            .then((rows) => rows.map((x) => ({ isin: x.isin, exchange: x.exchange, count: x.count })));
+            .then((rows) => rows.map((x) => ({ isin: x.isin, exchange: x.exchange, count: Number(x.count) })));
     }
 }
 
