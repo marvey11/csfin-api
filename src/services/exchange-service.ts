@@ -1,7 +1,7 @@
 import config from "config";
 
 import { Service } from "typedi";
-import { FindConditions, getRepository, Repository } from "typeorm";
+import { FindConditions, getRepository, InsertResult, Repository } from "typeorm";
 
 import { CreateExchangeRequest } from "../dtos";
 import { SecuritiesExchange } from "../entities";
@@ -27,17 +27,23 @@ class ExchangeService {
         return this.repository.findOneOrFail(id_or_conds);
     }
 
-    async addOne(data: CreateExchangeRequest): Promise<SecuritiesExchange> {
-        const exchange: SecuritiesExchange = this.repository.create();
-        exchange.name = data.name;
-        return this.repository.save(exchange);
+    async addOrUpdate(data: CreateExchangeRequest | CreateExchangeRequest[]): Promise<InsertResult> {
+        const result: SecuritiesExchange | SecuritiesExchange[] = Array.isArray(data)
+            ? data.map((req: CreateExchangeRequest) => this.toExchange(req))
+            : this.toExchange(data);
+
+        return this.repository
+            .createQueryBuilder()
+            .insert()
+            .values(result)
+            .orUpdate({ conflict_target: ["name"], overwrite: ["name"] }) // workaround since empty overwrite doesn't work
+            .execute();
     }
 
-    async update(exchangeID: number, data: CreateExchangeRequest): Promise<SecuritiesExchange> {
-        return this.getOne(exchangeID).then((exch: SecuritiesExchange) => {
-            exch.name = data.name;
-            return this.repository.save(exch);
-        });
+    private toExchange(req: CreateExchangeRequest): SecuritiesExchange {
+        const exchange: SecuritiesExchange = this.repository.create();
+        exchange.name = req.name;
+        return exchange;
     }
 }
 
