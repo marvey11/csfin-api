@@ -17,7 +17,6 @@
     "start-dev": "ts-node-dev src/index.ts"
   },
   "dependencies": {
-    "body-parser": "^1.19.0",
     "class-transformer": "0.3.1",
     "class-validator": "0.12.2",
     "config": "^3.3.4",
@@ -32,7 +31,6 @@
     "typeorm": "^0.2.31"
   },
   "devDependencies": {
-    "@types/body-parser": "^1.19.0",
     "@types/config": "^0.0.38",
     "@types/cors": "^2.8.10",
     "@types/express": "^4.17.11",
