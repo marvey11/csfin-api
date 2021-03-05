@@ -88,7 +88,8 @@ class QuoteDataService {
             .createQueryBuilder("quote")
             .innerJoin("quote.security", "security")
             .innerJoin("quote.exchange", "exchange")
-            .groupBy("exchange.id")
+            .groupBy("security.id")
+            .addGroupBy("exchange.id")
             .select(["security.isin as isin", "exchange.name as exchange", "COUNT(quote.id) as count"])
             .getRawMany()
             .then((rows) => rows.map((x) => ({ isin: x.isin, exchange: x.exchange, count: Number(x.count) })));
