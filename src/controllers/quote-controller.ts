@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { StatusCodes } from "http-status-codes";
-import { Body, Get, JsonController, Params, Post, QueryParam, QueryParams, Res } from "routing-controllers";
+import { Body, Get, JsonController, Param, Post, QueryParam, Res } from "routing-controllers";
 import { Service } from "typedi";
 
 import { AddQuoteDataRequest } from "../dtos";
@@ -14,17 +14,13 @@ class QuoteDataController {
 
     @Get("/quotes/:isin/:exchange")
     async get(
-        @Params({ required: true }) params: { isin: string; exchange: number },
-        @QueryParams() queryParams: { startDate?: string; endDate?: string },
-        @Res() response: Response
+        @Res() response: Response,
+        @Param("isin") isin: string,
+        @Param("exchange") exchangeID: number,
+        @QueryParam("start-date") startDate?: string,
+        @QueryParam("end-date") endDate?: string
     ): Promise<Response> {
-        const quotes: QuoteData[] = await this.service.get(
-            params.isin,
-            params.exchange,
-            queryParams.startDate,
-            queryParams.endDate
-        );
-
+        const quotes: QuoteData[] = await this.service.get(isin, exchangeID, startDate, endDate);
         return response.send(quotes.map((qd: QuoteData) => ({ date: qd.date, quote: qd.quote })));
     }
 
