@@ -9,12 +9,14 @@ import { QuoteData, Security } from "../entities";
 import { ExchangeService } from "./exchange-service";
 import { SecuritiesService } from "./security-service";
 
-type AllLatestDatesDTO = {
+type PerformanceQuotesDTO = {
     securityISIN: string;
     securityName: string;
-    exchangeID: number;
     exchangeName: string;
     latestDate: Date;
+    latestQuote: number;
+    referenceDate: Date;
+    referenceQuote: number;
 };
 
 type QuoteCountDTO = {
@@ -92,70 +94,81 @@ class QuoteDataService {
         });
     }
 
-    /**
-     *
-     * @returns
-     * ```sql
-     * SELECT s.isin AS isin, e.name AS exchange, MAX(q.date) AS max_date FROM quotes AS q INNER JOIN securities AS s ON q.securityId = s.id INNER JOIN exchanges AS e ON q.exchangeId = e.id GROUP BY s.isin, e.name;
-     * ```
-     */
-    async getAllLatestDates(): Promise<AllLatestDatesDTO[]> {
-        return this.createJoinedTablesQuery()
-            .groupBy("s.isin")
-            .addGroupBy("e.id")
-            .select("s.isin", "securityISIN")
-            .addSelect("s.name", "securityName")
-            .addSelect("e.id", "exchangeID")
-            .addSelect("e.name", "exchangeName")
-            .addSelect("MAX(q.date)", "latestDate")
+    async getPerformanceQuotes(): Promise<PerformanceQuotesDTO[]> {
+        return this.repository
+            .createQueryBuilder("q")
+            .select([
+                "rdates.isin",
+                "rdates.sname",
+                "rdates.ename",
+                "rdates.latestDate",
+                "rdates.latestQuote",
+                "rdates.referenceDate",
+                "q.quote AS referenceQuote"
+            ])
+            .leftJoin((qb) => this.getReferenceDates(qb.subQuery()), "rdates", "q.securityId = rdates.secID")
+            .where("q.date = rdates.referenceDate")
             .getRawMany()
-            .then((rows) =>
-                rows.map((x) => ({
-                    securityISIN: x.securityISIN,
-                    securityName: x.securityName,
-                    exchangeID: Number(x.exchangeID),
-                    exchangeName: x.exchangeName,
-                    latestDate: new Date(x.latestDate)
+            .then((data) =>
+                data.map((x) => ({
+                    securityISIN: x.isin,
+                    securityName: x.sname,
+                    exchangeName: x.ename,
+                    latestDate: new Date(x.latestDate),
+                    latestQuote: Number(x.latestQuote),
+                    referenceDate: new Date(x.referenceDate),
+                    referenceQuote: Number(x.referenceQuote)
                 }))
             );
     }
 
-    async getLatestDateOnOrBefore(isin: string, exchangeID: number, refDate?: Date): Promise<Date> {
-        const query = this.createFilteredRowsQuery(isin, exchangeID);
-
-        if (refDate) {
-            // where() is already used in createFilteredRowsQuery()
-            query.andWhere("q.date <= :date", { date: refDate.toISOString() });
-        }
-
-        return query
-            .select("MAX(q.date)", "max_date")
-            .getRawOne()
-            .then((x) => new Date(x.max_date));
+    private getReferenceDates(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
+        return qb
+            .select([
+                "lquotes.secID",
+                "lquotes.isin",
+                "lquotes.sname",
+                "lquotes.ename",
+                "lquotes.latestDate",
+                "lquotes.latestQuote",
+                "MAX(q.date) AS referenceDate"
+            ])
+            .from(QuoteData, "q")
+            .leftJoin((qb) => this.getLatestQuotes(qb.subQuery()), "lquotes", "q.securityId = lquotes.secID")
+            .where("q.date <= DATE_SUB(lquotes.latestDate, INTERVAL 1 YEAR)")
+            .groupBy("lquotes.isin")
+            .addGroupBy("lquotes.ename");
     }
 
-    /**
-     * Returns the quote value on the reference date for the specified security/exchange combination.
-     *
-     * This method presumes that for the specified security/exchange combination there actually is quote stored for
-     * the reference date. The caller has to make sure of it, otherwise the result will be empty.
-     *
-     * @param isin the security's ISIN
-     * @param exchangeID the exchange ID
-     * @param refDate the date for which to retrieve the quote
-     * @returns the quote on the reference date for the specified security/exchange
-     *
-     * SQL equivalent:
-     * ```sql
-     * SELECT q.quote FROM quotes AS q INNER JOIN securities AS s ON q.securityId = s.id INNER JOIN exchanges AS e ON q.exchangeId = e.id WHERE s.isin = {isin} AND e.id = {exchangeID} AND q.date = {refDate};
-     * ```
-     */
-    async getQuoteForDate(isin: string, exchangeID: number, refDate: Date): Promise<number> {
-        return this.createFilteredRowsQuery(isin, exchangeID)
-            .andWhere("q.date = :date", { date: refDate }) // where() is already used in createFilteredRowsQuery()
-            .select("q.quote", "quote")
-            .getRawOne()
-            .then((x) => Number(x.quote));
+    private getLatestQuotes(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
+        return qb
+            .select([
+                "ldates.secID",
+                "ldates.isin",
+                "ldates.sname",
+                "ldates.ename",
+                "ldates.latestDate",
+                "q.quote AS latestQuote"
+            ])
+            .from(QuoteData, "q")
+            .leftJoin((qb) => this.getLatestDates(qb.subQuery()), "ldates", "q.securityId = ldates.secID")
+            .where("q.date = ldates.latestDate");
+    }
+
+    private getLatestDates(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
+        return qb
+            .select([
+                "s.id AS secID",
+                "s.isin AS isin",
+                "s.name AS sname",
+                "e.name AS ename",
+                "MAX(q.date) AS latestDate"
+            ])
+            .from(QuoteData, "q")
+            .leftJoin("q.security", "s")
+            .leftJoin("q.exchange", "e")
+            .groupBy("s.isin")
+            .addGroupBy("e.name");
     }
 
     /**
@@ -215,4 +228,4 @@ class QuoteDataService {
     }
 }
 
-export { AllLatestDatesDTO, QuoteDataService, QuoteCountDTO };
+export { PerformanceQuotesDTO, QuoteDataService, QuoteCountDTO };

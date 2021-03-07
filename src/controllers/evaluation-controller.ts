@@ -10,7 +10,7 @@ import { EvaluationService } from "../services/evaluation-service";
 class EvaluationController {
     constructor(private service: EvaluationService) {}
 
-    @Get("/evaluate-performance")
+    @Get("/evaluate/performance")
     async evaluatePerformance(@Res() response: Response): Promise<Response> {
         const data = await this.service.evaluatePerformance();
         return response.status(StatusCodes.OK).send(data);
