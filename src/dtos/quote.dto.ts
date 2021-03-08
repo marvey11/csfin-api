@@ -20,6 +20,7 @@ class AddQuoteDataRequest {
 
 type LatestSharePriceDateDTO = {
     isin: string;
+    exchange: string;
     latestDate: Date;
 };
 
