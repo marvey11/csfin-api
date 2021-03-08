@@ -1,9 +1,10 @@
 import config from "config";
+import moment from "moment";
 
 import { Service } from "typedi";
 import { getRepository, Repository, SelectQueryBuilder } from "typeorm";
 
-import { AddQuoteDataRequest, LatestSharePriceDateDTO } from "../dtos";
+import { AddQuoteDataRequest, LatestDatesOptions, LatestSharePriceDateDTO } from "../dtos";
 import { QuoteData, Security } from "../entities";
 
 import { ExchangeService } from "./exchange-service";
@@ -100,10 +101,17 @@ class QuoteDataService {
         });
     }
 
-    async getLatestDates(): Promise<LatestSharePriceDateDTO[]> {
+    async getLatestDates(options: LatestDatesOptions): Promise<LatestSharePriceDateDTO[]> {
+        const datesOnly = options && options["date-only"];
         return this.subQueryLatestDates(this.repository.createQueryBuilder().subQuery())
             .getRawMany()
-            .then((data) => data.map((x) => ({ isin: x.isin, exchange: x.ename, latestDate: new Date(x.latestDate) })));
+            .then((data) =>
+                data.map((x) => {
+                    const ldate = new Date(x.latestDate);
+                    const latestDateString = datesOnly ? moment(ldate).format("YYYY-MM-DD") : ldate.toISOString();
+                    return { isin: x.isin, exchange: x.ename, latestDate: latestDateString };
+                })
+            );
     }
 
     /**
