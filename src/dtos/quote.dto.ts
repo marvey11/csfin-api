@@ -18,4 +18,9 @@ class AddQuoteDataRequest {
     }
 }
 
-export { AddQuoteDataRequest };
+type LatestSharePriceDateDTO = {
+    isin: string;
+    latestDate: Date;
+};
+
+export { AddQuoteDataRequest, LatestSharePriceDateDTO };

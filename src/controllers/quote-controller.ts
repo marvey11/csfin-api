@@ -3,7 +3,7 @@ import { StatusCodes } from "http-status-codes";
 import { Body, Get, JsonController, Param, Post, QueryParam, Res } from "routing-controllers";
 import { Service } from "typedi";
 
-import { AddQuoteDataRequest } from "../dtos";
+import { AddQuoteDataRequest, LatestSharePriceDateDTO } from "../dtos";
 import { QuoteData } from "../entities";
 import { QuoteDataService } from "../services";
 import { QuoteCountDTO } from "../services/quote-service";
@@ -33,6 +33,12 @@ class QuoteDataController {
         } catch (error) {
             return response.status(StatusCodes.BAD_REQUEST).send({ message: error.message });
         }
+    }
+
+    @Get("/quotes/latest-dates")
+    async getLatestDates(@Res() response: Response): Promise<Response> {
+        const data: LatestSharePriceDateDTO[] = await this.service.getLatestDates();
+        return response.status(StatusCodes.OK).send(data);
     }
 
     @Get("/quotes/count")

@@ -3,7 +3,7 @@ import config from "config";
 import { Service } from "typedi";
 import { getRepository, Repository, SelectQueryBuilder } from "typeorm";
 
-import { AddQuoteDataRequest } from "../dtos";
+import { AddQuoteDataRequest, LatestSharePriceDateDTO } from "../dtos";
 import { QuoteData, Security } from "../entities";
 
 import { ExchangeService } from "./exchange-service";
@@ -98,6 +98,12 @@ class QuoteDataService {
                 .orUpdate({ conflict_target: ["date", "security", "exchange"], overwrite: ["quote"] })
                 .execute();
         });
+    }
+
+    async getLatestDates(): Promise<LatestSharePriceDateDTO[]> {
+        return this.subQueryLatestDates(this.repository.createQueryBuilder().subQuery())
+            .getRawMany()
+            .then((data) => data.map((x) => ({ isin: x.isin, latestDate: new Date(x.latestDate) })));
     }
 
     /**
