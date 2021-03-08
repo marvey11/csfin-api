@@ -17,6 +17,7 @@ type PerformanceIntervalDTO = {
 type PerformanceQuotesDTO = {
     securityISIN: string;
     securityName: string;
+    instrumentType: string;
     exchangeName: string;
     latestDate: Date;
     latestPrice: number;
@@ -106,7 +107,7 @@ class QuoteDataService {
      *
      * SQL equivalent:
      * ```sql
-     * SELECT bdates.isin, bdates.sname, bdates.ename, bdates.latestDate, bdates.latestPrice, bdates.baseDate, q.quote AS basePrice
+     * SELECT bdates.isin, bdates.sname, bdates.itype, bdates.ename, bdates.latestDate, bdates.latestPrice, bdates.baseDate, q.quote AS basePrice
      * FROM quotes AS q
      * LEFT JOIN (
      *     -- calculates the base dates (latest dates minus an interval, in this case 1 year)
@@ -138,6 +139,7 @@ class QuoteDataService {
             .select([
                 "bdates.isin",
                 "bdates.sname",
+                "bdates.itype",
                 "bdates.ename",
                 "bdates.latestDate",
                 "bdates.latestPrice",
@@ -155,6 +157,7 @@ class QuoteDataService {
                 data.map((x) => ({
                     securityISIN: x.isin,
                     securityName: x.sname,
+                    instrumentType: x.itype,
                     exchangeName: x.ename,
                     latestDate: new Date(x.latestDate),
                     latestPrice: Number(x.latestPrice),
@@ -173,7 +176,7 @@ class QuoteDataService {
      *
      * SQL equivalent:
      * ```sql
-     * SELECT lprices.sid, lprices.isin, lprices.sname, lprices.ename, lprices.latestDate, lprices.latestPrice, MAX(q.date) AS baseDate
+     * SELECT lprices.sid, lprices.isin, lprices.sname, lprices.itype, lprices.ename, lprices.latestDate, lprices.latestPrice, MAX(q.date) AS baseDate
      * FROM quotes AS q
      * LEFT JOIN (
      *     -- adds the share prices to the latest dates
@@ -208,6 +211,7 @@ class QuoteDataService {
                 "lprices.sid",
                 "lprices.isin",
                 "lprices.sname",
+                "lprices.itype",
                 "lprices.ename",
                 "lprices.latestDate",
                 "lprices.latestPrice",
@@ -228,7 +232,7 @@ class QuoteDataService {
      *
      * SQL equivalent:
      * ```sql
-     * SELECT ldates.sid, ldates.isin, ldates.sname, ldates.ename, ldates.latestDate, q.quote AS latestPrice
+     * SELECT ldates.sid, ldates.isin, ldates.sname, ldates.itype, ldates.ename, ldates.latestDate, q.quote AS latestPrice
      * FROM quotes AS q
      * LEFT JOIN (
      *     -- the latest dates for each security
@@ -247,6 +251,7 @@ class QuoteDataService {
                 "ldates.sid",
                 "ldates.isin",
                 "ldates.sname",
+                "ldates.itype",
                 "ldates.ename",
                 "ldates.latestDate",
                 "q.quote AS latestPrice"
@@ -265,7 +270,7 @@ class QuoteDataService {
      *
      * SQL equivalent:
      * ```sql
-     * SELECT s.id AS sid, s.isin AS isin, s.name AS sname, e.name AS ename, MAX(q.date) AS latestDate
+     * SELECT s.id AS sid, s.isin AS isin, s.name AS sname, s.type AS itype, e.name AS ename, MAX(q.date) AS latestDate
      * FROM quotes AS q
      * LEFT JOIN securities AS s ON q.securityId = s.id
      * LEFT JOIN exchanges AS e ON q.exchangeId = e.id
@@ -278,6 +283,7 @@ class QuoteDataService {
                 "s.id AS sid",
                 "s.isin AS isin",
                 "s.name AS sname",
+                "s.type AS itype",
                 "e.name AS ename",
                 "MAX(q.date) AS latestDate"
             ])
