@@ -103,7 +103,7 @@ class QuoteDataService {
     async getLatestDates(): Promise<LatestSharePriceDateDTO[]> {
         return this.subQueryLatestDates(this.repository.createQueryBuilder().subQuery())
             .getRawMany()
-            .then((data) => data.map((x) => ({ isin: x.isin, latestDate: new Date(x.latestDate) })));
+            .then((data) => data.map((x) => ({ isin: x.isin, exchange: x.ename, latestDate: new Date(x.latestDate) })));
     }
 
     /**
