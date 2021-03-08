@@ -6,6 +6,7 @@ import { Service } from "typedi";
 import { AddQuoteDataRequest } from "../dtos";
 import { QuoteData } from "../entities";
 import { QuoteDataService } from "../services";
+import { QuoteCountDTO } from "../services/quote-service";
 
 @Service()
 @JsonController()
@@ -36,7 +37,7 @@ class QuoteDataController {
 
     @Get("/quotes/count")
     async getCount(@QueryParam("with-sum") withSum: boolean, @Res() response: Response): Promise<Response> {
-        const data = await this.service.getQuoteCount();
+        const data: QuoteCountDTO[] = await this.service.getQuoteCount();
 
         if (withSum) {
             const sum = data.map((item) => item.count).reduce((a, b) => a + b, 0);
