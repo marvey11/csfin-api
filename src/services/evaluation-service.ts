@@ -1,6 +1,6 @@
 import { Service } from "typedi";
 
-import { PerformanceQuotesDTO, QuoteDataService } from "./quote-service";
+import { PerformanceIntervalDTO, PerformanceQuotesDTO, QuoteDataService } from "./quote-service";
 
 type EvaluatePerformanceDTO = {
     securityISIN: string;
@@ -14,8 +14,8 @@ type EvaluatePerformanceDTO = {
 class EvaluationService {
     constructor(private quoteService: QuoteDataService) {}
 
-    async evaluatePerformance(): Promise<PerformanceQuotesDTO[]> {
-        return this.quoteService.getPerformanceQuotes();
+    async evaluatePerformance(interval: PerformanceIntervalDTO): Promise<PerformanceQuotesDTO[]> {
+        return this.quoteService.getPerformanceQuotes(interval);
     }
 }
 

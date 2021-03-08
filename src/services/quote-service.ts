@@ -9,6 +9,11 @@ import { QuoteData, Security } from "../entities";
 import { ExchangeService } from "./exchange-service";
 import { SecuritiesService } from "./security-service";
 
+type PerformanceIntervalDTO = {
+    unit: "day" | "month" | "year";
+    count: number;
+};
+
 type PerformanceQuotesDTO = {
     securityISIN: string;
     securityName: string;
@@ -127,7 +132,7 @@ class QuoteDataService {
      * WHERE q.date = bdates.baseDate;
      * ```
      */
-    async getPerformanceQuotes(): Promise<PerformanceQuotesDTO[]> {
+    async getPerformanceQuotes(interval: PerformanceIntervalDTO): Promise<PerformanceQuotesDTO[]> {
         return this.repository
             .createQueryBuilder("q")
             .select([
@@ -139,7 +144,11 @@ class QuoteDataService {
                 "bdates.baseDate",
                 "q.quote AS basePrice"
             ])
-            .leftJoin((qb) => this.subQueryReferenceDates(qb.subQuery()), "bdates", "q.securityId = bdates.sid")
+            .leftJoin(
+                (qb) => this.subQueryReferenceDates(qb.subQuery(), interval),
+                "bdates",
+                "q.securityId = bdates.sid"
+            )
             .where("q.date = bdates.baseDate")
             .getRawMany()
             .then((data) =>
@@ -184,7 +193,16 @@ class QuoteDataService {
      * GROUP BY lprices.isin, lprices.ename
      * ```
      */
-    private subQueryReferenceDates(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
+    private subQueryReferenceDates(
+        qb: SelectQueryBuilder<QuoteData>,
+        interval: PerformanceIntervalDTO
+    ): SelectQueryBuilder<QuoteData> {
+        if (interval.count < 1) {
+            throw new RangeError("Interval count must be positive");
+        }
+        const unit = { day: "DAY", month: "MONTH", year: "YEAR" };
+        const intvl = `${interval.count} ${unit[interval.unit]}`;
+
         return qb
             .select([
                 "lprices.sid",
@@ -197,7 +215,7 @@ class QuoteDataService {
             ])
             .from(QuoteData, "q")
             .leftJoin((qb) => this.subQueryLatestSharePrices(qb.subQuery()), "lprices", "q.securityId = lprices.sid")
-            .where("q.date <= DATE_SUB(lprices.latestDate, INTERVAL 1 YEAR)")
+            .where(`q.date <= DATE_SUB(lprices.latestDate, INTERVAL ${intvl})`)
             .groupBy("lprices.isin")
             .addGroupBy("lprices.ename");
     }
@@ -327,4 +345,4 @@ class QuoteDataService {
     }
 }
 
-export { PerformanceQuotesDTO, QuoteDataService, QuoteCountDTO };
+export { PerformanceIntervalDTO, PerformanceQuotesDTO, QuoteDataService, QuoteCountDTO };
