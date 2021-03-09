@@ -3,7 +3,7 @@ import { StatusCodes } from "http-status-codes";
 import { Body, Get, JsonController, Param, Post, QueryParam, Res } from "routing-controllers";
 import { Service } from "typedi";
 
-import { AddQuoteDataRequest, LatestDatesOptions, LatestSharePriceDateDTO } from "../dtos";
+import { AddQuoteDataRequest, NewestSharePriceDateDTO, NewestDatesOptions } from "../dtos";
 import { QuoteData } from "../entities";
 import { QuoteDataService } from "../services";
 import { QuoteCountDTO } from "../services/quote-service";
@@ -35,12 +35,12 @@ class QuoteDataController {
         }
     }
 
-    @Get("/quotes/latest-dates")
-    async getLatestDates(
-        @QueryParam("options") options: LatestDatesOptions = { "date-only": false },
+    @Get("/quotes/newest-dates")
+    async getNewestDates(
+        @QueryParam("options") options: NewestDatesOptions = { "date-only": false },
         @Res() response: Response
     ): Promise<Response> {
-        const data: LatestSharePriceDateDTO[] = await this.service.getLatestDates(options);
+        const data: NewestSharePriceDateDTO[] = await this.service.getNewestDates(options);
         return response.status(StatusCodes.OK).send(data);
     }
 

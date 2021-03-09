@@ -6,7 +6,7 @@ type EvaluatePerformanceDTO = {
     securityISIN: string;
     securityName: string;
     exchangeName: string;
-    latestDate: Date;
+    newestDate: Date;
     performance: number;
 };
 

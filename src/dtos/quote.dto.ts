@@ -18,14 +18,14 @@ class AddQuoteDataRequest {
     }
 }
 
-type LatestDatesOptions = {
+type NewestDatesOptions = {
     "date-only"?: boolean;
 };
 
-type LatestSharePriceDateDTO = {
+type NewestSharePriceDateDTO = {
     isin: string;
     exchange: string;
-    latestDate: string;
+    newestDate: string;
 };
 
-export { AddQuoteDataRequest, LatestDatesOptions, LatestSharePriceDateDTO };
+export { AddQuoteDataRequest, NewestDatesOptions, NewestSharePriceDateDTO };
