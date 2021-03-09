@@ -4,7 +4,7 @@ import moment from "moment";
 import { Service } from "typedi";
 import { getRepository, Repository, SelectQueryBuilder } from "typeorm";
 
-import { AddQuoteDataRequest, LatestDatesOptions, LatestSharePriceDateDTO } from "../dtos";
+import { AddQuoteDataRequest, NewestDatesOptions, NewestSharePriceDateDTO } from "../dtos";
 import { QuoteData, Security } from "../entities";
 
 import { ExchangeService } from "./exchange-service";
@@ -20,8 +20,8 @@ type PerformanceQuotesDTO = {
     securityName: string;
     instrumentType: string;
     exchangeName: string;
-    latestDate: Date;
-    latestPrice: number;
+    newestDate: Date;
+    newestPrice: number;
     baseDate: Date;
     basePrice: number;
 };
@@ -74,7 +74,7 @@ class QuoteDataService {
             const exchange = await this.exchangeService.getOne({ name: data.exchange });
             /*
              * Creates a list of items that need to be inserted or updated. And we really don't care which at this
-             * point; we only want to make sure that the latest data is in the repository.
+             * point; we only want to make sure that the newest data is in the repository.
              */
             const itemList: QuoteData[] = [];
             for (const item of data.quotes) {
@@ -101,15 +101,15 @@ class QuoteDataService {
         });
     }
 
-    async getLatestDates(options: LatestDatesOptions): Promise<LatestSharePriceDateDTO[]> {
+    async getNewestDates(options: NewestDatesOptions): Promise<NewestSharePriceDateDTO[]> {
         const datesOnly = options && options["date-only"];
-        return this.subQueryLatestDates(this.repository.createQueryBuilder().subQuery())
+        return this.subQueryMinMaxDates(this.repository.createQueryBuilder().subQuery())
             .getRawMany()
             .then((data) =>
                 data.map((x) => {
-                    const ldate = new Date(x.latestDate);
-                    const latestDateString = datesOnly ? moment(ldate).format("YYYY-MM-DD") : ldate.toISOString();
-                    return { isin: x.isin, exchange: x.ename, latestDate: latestDateString };
+                    const ndate = new Date(x.newestDate);
+                    const newestDateString = datesOnly ? moment(ndate).format("YYYY-MM-DD") : ndate.toISOString();
+                    return { isin: x.isin, exchange: x.ename, newestDate: newestDateString };
                 })
             );
     }
@@ -121,28 +121,28 @@ class QuoteDataService {
      *
      * SQL equivalent:
      * ```sql
-     * SELECT bdates.isin, bdates.sname, bdates.itype, bdates.ename, bdates.latestDate, bdates.latestPrice, bdates.baseDate, q.quote AS basePrice
+     * SELECT bdates.isin, bdates.sname, bdates.itype, bdates.ename, bdates.newestDate, bdates.newestPrice, bdates.baseDate, q.quote AS basePrice
      * FROM quotes AS q
      * LEFT JOIN (
-     *     -- calculates the base dates (latest dates minus an interval, in this case 1 year)
-     *     SELECT lprices.sid, lprices.isin, lprices.sname, lprices.ename, lprices.latestDate, lprices.latestPrice, MAX(q.date) AS baseDate
+     *     -- calculates the base dates (newest dates minus an interval, in this case 1 year)
+     *     SELECT nprices.sid, nprices.isin, nprices.sname, nprices.ename, nprices.newestDate, nprices.newestPrice, MAX(q.date) AS baseDate
      *     FROM quotes AS q
      *     LEFT JOIN (
-     *         -- adds the share prices to the latest dates
-     *         SELECT ldates.sid, ldates.isin, ldates.sname, ldates.ename, ldates.latestDate, q.quote AS latestPrice
+     *         -- adds the share prices to the newest dates
+     *         SELECT ndates.sid, ndates.isin, ndates.sname, ndates.ename, ndates.newestDate, q.quote AS newestPrice
      *         FROM quotes AS q
      *         LEFT JOIN (
-     *             -- the latest dates for each security
-     *             SELECT s.id AS sid, s.isin AS isin, s.name AS sname, e.name AS ename, MAX(q.date) AS latestDate
+     *             -- the newest dates for each security
+     *             SELECT s.id AS sid, s.isin AS isin, s.name AS sname, e.name AS ename, MAX(q.date) AS newestDate
      *             FROM quotes AS q
      *             LEFT JOIN securities AS s ON q.securityId = s.id
      *             LEFT JOIN exchanges AS e ON q.exchangeId = e.id
      *             GROUP BY s.isin, e.name
-     *         ) AS ldates ON q.securityId = ldates.sid
-     *         WHERE q.date = ldates.latestDate
-     *     ) AS lprices ON q.securityId = lprices.sid
-     *     WHERE q.date <= DATE_SUB(lprices.latestDate, INTERVAL 1 YEAR)
-     *     GROUP BY lprices.isin, lprices.ename
+     *         ) AS ndates ON q.securityId = ndates.sid
+     *         WHERE q.date = ndates.newestDate
+     *     ) AS nprices ON q.securityId = nprices.sid
+     *     WHERE q.date <= DATE_SUB(nprices.newestDate, INTERVAL 1 YEAR)
+     *     GROUP BY nprices.isin, nprices.ename
      * ) AS bdates ON q.securityId = bdates.sid
      * WHERE q.date = bdates.baseDate;
      * ```
@@ -155,16 +155,12 @@ class QuoteDataService {
                 "bdates.sname",
                 "bdates.itype",
                 "bdates.ename",
-                "bdates.latestDate",
-                "bdates.latestPrice",
+                "bdates.newestDate",
+                "bdates.newestPrice",
                 "bdates.baseDate",
                 "q.quote AS basePrice"
             ])
-            .leftJoin(
-                (qb) => this.subQueryReferenceDates(qb.subQuery(), interval),
-                "bdates",
-                "q.securityId = bdates.sid"
-            )
+            .leftJoin((qb) => this.subQueryBaseDates(qb.subQuery(), interval), "bdates", "q.securityId = bdates.sid")
             .where("q.date = bdates.baseDate")
             .getRawMany()
             .then((data) =>
@@ -173,8 +169,8 @@ class QuoteDataService {
                     securityName: x.sname,
                     instrumentType: x.itype,
                     exchangeName: x.ename,
-                    latestDate: new Date(x.latestDate),
-                    latestPrice: Number(x.latestPrice),
+                    newestDate: new Date(x.newestDate),
+                    newestPrice: Number(x.newestPrice),
                     baseDate: new Date(x.baseDate),
                     basePrice: Number(x.basePrice)
                 }))
@@ -190,27 +186,27 @@ class QuoteDataService {
      *
      * SQL equivalent:
      * ```sql
-     * SELECT lprices.sid, lprices.isin, lprices.sname, lprices.itype, lprices.ename, lprices.latestDate, lprices.latestPrice, MAX(q.date) AS baseDate
+     * SELECT nprices.sid, nprices.isin, nprices.sname, nprices.itype, nprices.ename, nprices.newestDate, nprices.newestPrice, MAX(q.date) AS baseDate
      * FROM quotes AS q
      * LEFT JOIN (
-     *     -- adds the share prices to the latest dates
-     *     SELECT ldates.sid, ldates.isin, ldates.sname, ldates.ename, ldates.latestDate, q.quote AS latestPrice
+     *     -- adds the share prices to the newest dates
+     *     SELECT ndates.sid, ndates.isin, ndates.sname, ndates.ename, ndates.newestDate, q.quote AS newestPrice
      *     FROM quotes AS q
      *     LEFT JOIN (
-     *         -- the latest dates for each security
-     *         SELECT s.id AS sid, s.isin AS isin, s.name AS sname, e.name AS ename, MAX(q.date) AS latestDate
+     *         -- the newest dates for each security
+     *         SELECT s.id AS sid, s.isin AS isin, s.name AS sname, e.name AS ename, MAX(q.date) AS newestDate
      *         FROM quotes AS q
      *         LEFT JOIN securities AS s ON q.securityId = s.id
      *         LEFT JOIN exchanges AS e ON q.exchangeId = e.id
      *         GROUP BY s.isin, e.name
-     *     ) AS ldates ON q.securityId = ldates.sid
-     *     WHERE q.date = ldates.latestDate
-     * ) AS lprices ON q.securityId = lprices.sid
-     * WHERE q.date <= DATE_SUB(lprices.latestDate, INTERVAL 1 YEAR)
-     * GROUP BY lprices.isin, lprices.ename
+     *     ) AS ndates ON q.securityId = ndates.sid
+     *     WHERE q.date = ndates.newestDate
+     * ) AS nprices ON q.securityId = nprices.sid
+     * WHERE q.date <= DATE_SUB(nprices.newestDate, INTERVAL 1 YEAR)
+     * GROUP BY nprices.isin, nprices.ename
      * ```
      */
-    private subQueryReferenceDates(
+    private subQueryBaseDates(
         qb: SelectQueryBuilder<QuoteData>,
         interval: PerformanceIntervalDTO
     ): SelectQueryBuilder<QuoteData> {
@@ -222,61 +218,61 @@ class QuoteDataService {
 
         return qb
             .select([
-                "lprices.sid",
-                "lprices.isin",
-                "lprices.sname",
-                "lprices.itype",
-                "lprices.ename",
-                "lprices.latestDate",
-                "lprices.latestPrice",
+                "nprices.sid",
+                "nprices.isin",
+                "nprices.sname",
+                "nprices.itype",
+                "nprices.ename",
+                "nprices.newestDate",
+                "nprices.newestPrice",
                 "MAX(q.date) AS baseDate"
             ])
             .from(QuoteData, "q")
-            .leftJoin((qb) => this.subQueryLatestSharePrices(qb.subQuery()), "lprices", "q.securityId = lprices.sid")
-            .where(`q.date <= DATE_SUB(lprices.latestDate, INTERVAL ${intvl})`)
-            .groupBy("lprices.isin")
-            .addGroupBy("lprices.ename");
+            .leftJoin((qb) => this.subQueryNewestSharePrices(qb.subQuery()), "nprices", "q.securityId = nprices.sid")
+            .where(`q.date <= DATE_SUB(nprices.newestDate, INTERVAL ${intvl})`)
+            .groupBy("nprices.isin")
+            .addGroupBy("nprices.ename");
     }
 
     /**
-     * Query builder for the subquery that returns the share prices for the latest date for each of the securities.
+     * Query builder for the subquery that returns the share prices for the newest date for each of the securities.
      *
      * @param qb the query builder of the calling query
      * @returns the query builder for the subquery
      *
      * SQL equivalent:
      * ```sql
-     * SELECT ldates.sid, ldates.isin, ldates.sname, ldates.itype, ldates.ename, ldates.latestDate, q.quote AS latestPrice
+     * SELECT ndates.sid, ndates.isin, ndates.sname, ndates.itype, ndates.ename, ndates.newestDate, q.quote AS newestPrice
      * FROM quotes AS q
      * LEFT JOIN (
-     *     -- the latest dates for each security
-     *     SELECT s.id AS sid, s.isin AS isin, s.name AS sname, e.name AS ename, MAX(q.date) AS latestDate
+     *     -- the newest dates for each security
+     *     SELECT s.id AS sid, s.isin AS isin, s.name AS sname, e.name AS ename, MAX(q.date) AS newestDate
      *     FROM quotes AS q
      *     LEFT JOIN securities AS s ON q.securityId = s.id
      *     LEFT JOIN exchanges AS e ON q.exchangeId = e.id
      *     GROUP BY s.isin, e.name
-     * ) AS ldates ON q.securityId = ldates.sid
-     * WHERE q.date = ldates.latestDate
+     * ) AS ndates ON q.securityId = ndates.sid
+     * WHERE q.date = ndates.newestDate
      * ```
      */
-    private subQueryLatestSharePrices(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
+    private subQueryNewestSharePrices(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
         return qb
             .select([
-                "ldates.sid",
-                "ldates.isin",
-                "ldates.sname",
-                "ldates.itype",
-                "ldates.ename",
-                "ldates.latestDate",
-                "q.quote AS latestPrice"
+                "ndates.sid",
+                "ndates.isin",
+                "ndates.sname",
+                "ndates.itype",
+                "ndates.ename",
+                "ndates.newestDate",
+                "q.quote AS newestPrice"
             ])
             .from(QuoteData, "q")
-            .leftJoin((qb) => this.subQueryLatestDates(qb.subQuery()), "ldates", "q.securityId = ldates.sid")
-            .where("q.date = ldates.latestDate");
+            .leftJoin((qb) => this.subQueryMinMaxDates(qb.subQuery()), "ndates", "q.securityId = ndates.sid")
+            .where("q.date = ndates.newestDate");
     }
 
     /**
-     * Query builder for the subquery that returns the latest date for each of the securities that a share price is
+     * Query builder for the subquery that returns both the oldest and the newest date for each of the securities that a share price is
      * stored with.
      *
      * @param qb the query builder of the calling query
@@ -284,14 +280,14 @@ class QuoteDataService {
      *
      * SQL equivalent:
      * ```sql
-     * SELECT s.id AS sid, s.isin AS isin, s.name AS sname, s.type AS itype, e.name AS ename, MAX(q.date) AS latestDate
+     * SELECT s.id AS sid, s.isin AS isin, s.name AS sname, s.type AS itype, e.name AS ename, MIN(q.date) AS oldestDate, MAX(q.date) AS newestDate
      * FROM quotes AS q
      * LEFT JOIN securities AS s ON q.securityId = s.id
      * LEFT JOIN exchanges AS e ON q.exchangeId = e.id
      * GROUP BY s.isin, e.name
      * ```
      */
-    private subQueryLatestDates(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
+    private subQueryMinMaxDates(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
         return qb
             .select([
                 "s.id AS sid",
@@ -299,7 +295,8 @@ class QuoteDataService {
                 "s.name AS sname",
                 "s.type AS itype",
                 "e.name AS ename",
-                "MAX(q.date) AS latestDate"
+                "MIN(q.date) AS oldestDate",
+                "MAX(q.date) AS newestDate"
             ])
             .from(QuoteData, "q")
             .leftJoin("q.security", "s")
