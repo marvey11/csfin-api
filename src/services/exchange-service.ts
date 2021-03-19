@@ -41,7 +41,7 @@ class ExchangeService {
     }
 
     private toExchange(req: CreateExchangeRequest): SecuritiesExchange {
-        const exchange: SecuritiesExchange = this.repository.create();
+        const exchange: SecuritiesExchange = new SecuritiesExchange();
         exchange.name = req.name;
         return exchange;
     }
