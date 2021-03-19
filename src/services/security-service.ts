@@ -49,7 +49,7 @@ class SecuritiesService {
      * @returns the newly created entity
      */
     private toSecurity(data: CreateSecurityRequest): Security {
-        const security: Security = this.repository.create();
+        const security: Security = new Security();
         security.isin = data.isin;
         security.nsin = data.nsin;
         security.name = data.name;
