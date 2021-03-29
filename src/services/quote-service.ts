@@ -1,12 +1,9 @@
 import config from "config";
 import moment from "moment";
-
 import { Service } from "typedi";
 import { getRepository, Repository, SelectQueryBuilder } from "typeorm";
-
-import { AddQuoteDataRequest, NewestDatesOptions, NewestSharePriceDateDTO } from "../dtos";
+import { AddQuoteDataRequest, NewestDatesOptions, NewestSharePriceDateDTO, RSLevyWeeklyData } from "../dtos";
 import { QuoteData, Security } from "../entities";
-
 import { ExchangeService } from "./exchange-service";
 import { SecuritiesService } from "./security-service";
 
@@ -112,6 +109,71 @@ class QuoteDataService {
                     return { isin: x.isin, exchange: x.ename, newestDate: newestDateString };
                 })
             );
+    }
+
+    async getRSLevyData(): Promise<RSLevyWeeklyData[]> {
+        return this.repository
+            .createQueryBuilder("q")
+            .select([
+                "wkcls.isin",
+                "wkcls.sname",
+                "wkcls.itype",
+                "wkcls.ename",
+                "wkcls.lastDayOfWeek",
+                "q.quote AS lastPriceOfWeek"
+            ])
+            .leftJoin((qb) => this.subqueryByLastOfWeek(qb.subQuery()), "wkcls", "q.securityId = wkcls.sid")
+            .where("q.date = wkcls.lastDayOfWeek")
+            .groupBy("wkcls.isin")
+            .addGroupBy("wkcls.ename")
+            .addGroupBy("wkcls.lastDayOfWeek")
+            .getRawMany()
+            .then((data) =>
+                data.map((x) => ({
+                    securityISIN: x.isin,
+                    securityName: x.sname,
+                    instrumentType: x.itype,
+                    exchangeName: x.ename,
+                    lastDayOfWeek: new Date(x.lastDayOfWeek),
+                    lastPriceOfWeek: Number(x.lastPriceOfWeek)
+                }))
+            );
+    }
+
+    subqueryByLastOfWeek(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
+        return qb
+            .select([
+                "byweek.sid",
+                "byweek.isin",
+                "byweek.sname",
+                "byweek.itype",
+                "byweek.ename",
+                "MAX(q.date) AS lastDayOfWeek"
+            ])
+            .from(QuoteData, "q")
+            .leftJoin((qb) => this.subqueryLast28Weeks(qb.subQuery()), "byweek", "q.securityId = byweek.sid")
+            .where("YEARWEEK(q.date, 3) = byweek.yearnweek")
+            .groupBy("byweek.isin")
+            .addGroupBy("byweek.ename")
+            .addGroupBy("byweek.yearnweek");
+    }
+
+    subqueryLast28Weeks(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
+        return qb
+            .select([
+                "ondates.sid",
+                "ondates.isin",
+                "ondates.sname",
+                "ondates.itype",
+                "ondates.ename",
+                "YEARWEEK(q.date, 3) AS yearnweek"
+            ])
+            .from(QuoteData, "q")
+            .leftJoin((qb) => this.subQueryMinMaxDates(qb.subQuery()), "ondates", "q.securityId = ondates.sid")
+            .where("q.date > DATE_SUB(ondates.newestDate, INTERVAL 30 week)") // get a few more weeks than the required 27, just in case
+            .groupBy("ondates.isin")
+            .addGroupBy("ondates.ename")
+            .addGroupBy("YEARWEEK(q.date, 3)");
     }
 
     /**
