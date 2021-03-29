@@ -7,22 +7,6 @@ import { QuoteData, Security } from "../entities";
 import { ExchangeService } from "./exchange-service";
 import { SecuritiesService } from "./security-service";
 
-type PerformanceIntervalDTO = {
-    unit: "day" | "month" | "year";
-    count: number;
-};
-
-type PerformanceQuotesDTO = {
-    securityISIN: string;
-    securityName: string;
-    instrumentType: string;
-    exchangeName: string;
-    newestDate: Date;
-    newestPrice: number;
-    baseDate: Date;
-    basePrice: number;
-};
-
 type QuoteCountDTO = {
     isin: string;
     exchange: string;
@@ -113,167 +97,15 @@ class QuoteDataService {
 
     getMinMaxDates(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
         return qb
-            .select(["q.securityId AS sid", "q.exchangeId AS eid", "MIN(q.date) AS min_date", "MAX(q.date) AS max_date"])
+            .select([
+                "q.securityId AS sid",
+                "q.exchangeId AS eid",
+                "MIN(q.date) AS min_date",
+                "MAX(q.date) AS max_date"
+            ])
             .from(QuoteData, "q")
             .groupBy("sid")
             .addGroupBy("eid");
-    }
-
-    /**
-     * Returns a table of data that can be used for performance calculations.
-     *
-     * @returns the data table as an array of PerformanceQuotesDTO rows
-     *
-     * SQL equivalent:
-     * ```sql
-     * SELECT bdates.isin, bdates.sname, bdates.itype, bdates.ename, bdates.newestDate, bdates.newestPrice, bdates.baseDate, q.quote AS basePrice
-     * FROM quotes AS q
-     * LEFT JOIN (
-     *     -- calculates the base dates (newest dates minus an interval, in this case 1 year)
-     *     SELECT nprices.sid, nprices.isin, nprices.sname, nprices.ename, nprices.newestDate, nprices.newestPrice, MAX(q.date) AS baseDate
-     *     FROM quotes AS q
-     *     LEFT JOIN (
-     *         -- adds the share prices to the newest dates
-     *         SELECT ndates.sid, ndates.isin, ndates.sname, ndates.ename, ndates.newestDate, q.quote AS newestPrice
-     *         FROM quotes AS q
-     *         LEFT JOIN (
-     *             -- the newest dates for each security
-     *             SELECT s.id AS sid, s.isin AS isin, s.name AS sname, e.name AS ename, MAX(q.date) AS newestDate
-     *             FROM quotes AS q
-     *             LEFT JOIN securities AS s ON q.securityId = s.id
-     *             LEFT JOIN exchanges AS e ON q.exchangeId = e.id
-     *             GROUP BY s.isin, e.name
-     *         ) AS ndates ON q.securityId = ndates.sid
-     *         WHERE q.date = ndates.newestDate
-     *     ) AS nprices ON q.securityId = nprices.sid
-     *     WHERE q.date <= DATE_SUB(nprices.newestDate, INTERVAL 1 YEAR)
-     *     GROUP BY nprices.isin, nprices.ename
-     * ) AS bdates ON q.securityId = bdates.sid
-     * WHERE q.date = bdates.baseDate;
-     * ```
-     */
-    async getPerformanceQuotes(interval: PerformanceIntervalDTO): Promise<PerformanceQuotesDTO[]> {
-        return this.repository
-            .createQueryBuilder("q")
-            .select([
-                "bdates.isin",
-                "bdates.sname",
-                "bdates.itype",
-                "bdates.ename",
-                "bdates.newestDate",
-                "bdates.newestPrice",
-                "bdates.baseDate",
-                "q.quote AS basePrice"
-            ])
-            .leftJoin((qb) => this.subQueryBaseDates(qb.subQuery(), interval), "bdates", "q.securityId = bdates.sid")
-            .where("q.date = bdates.baseDate")
-            .getRawMany()
-            .then((data) =>
-                data.map((x) => ({
-                    securityISIN: x.isin,
-                    securityName: x.sname,
-                    instrumentType: x.itype,
-                    exchangeName: x.ename,
-                    newestDate: new Date(x.newestDate),
-                    newestPrice: Number(x.newestPrice),
-                    baseDate: new Date(x.baseDate),
-                    basePrice: Number(x.basePrice)
-                }))
-            );
-    }
-
-    /**
-     * Query builder for the subquery that adds the base date (i.e. the date that the performance calculation is
-     * based on) for each security.
-     *
-     * @param qb the query builder of the calling query
-     * @returns the query builder for the subquery
-     *
-     * SQL equivalent:
-     * ```sql
-     * SELECT nprices.sid, nprices.isin, nprices.sname, nprices.itype, nprices.ename, nprices.newestDate, nprices.newestPrice, MAX(q.date) AS baseDate
-     * FROM quotes AS q
-     * LEFT JOIN (
-     *     -- adds the share prices to the newest dates
-     *     SELECT ndates.sid, ndates.isin, ndates.sname, ndates.ename, ndates.newestDate, q.quote AS newestPrice
-     *     FROM quotes AS q
-     *     LEFT JOIN (
-     *         -- the newest dates for each security
-     *         SELECT s.id AS sid, s.isin AS isin, s.name AS sname, e.name AS ename, MAX(q.date) AS newestDate
-     *         FROM quotes AS q
-     *         LEFT JOIN securities AS s ON q.securityId = s.id
-     *         LEFT JOIN exchanges AS e ON q.exchangeId = e.id
-     *         GROUP BY s.isin, e.name
-     *     ) AS ndates ON q.securityId = ndates.sid
-     *     WHERE q.date = ndates.newestDate
-     * ) AS nprices ON q.securityId = nprices.sid
-     * WHERE q.date <= DATE_SUB(nprices.newestDate, INTERVAL 1 YEAR)
-     * GROUP BY nprices.isin, nprices.ename
-     * ```
-     */
-    private subQueryBaseDates(
-        qb: SelectQueryBuilder<QuoteData>,
-        interval: PerformanceIntervalDTO
-    ): SelectQueryBuilder<QuoteData> {
-        if (interval.count < 1) {
-            throw new RangeError("Interval count must be positive");
-        }
-        const unit = { day: "DAY", month: "MONTH", year: "YEAR" };
-        const intvl = `${interval.count} ${unit[interval.unit]}`;
-
-        return qb
-            .select([
-                "nprices.sid",
-                "nprices.isin",
-                "nprices.sname",
-                "nprices.itype",
-                "nprices.ename",
-                "nprices.newestDate",
-                "nprices.newestPrice",
-                "MAX(q.date) AS baseDate"
-            ])
-            .from(QuoteData, "q")
-            .leftJoin((qb) => this.subQueryNewestSharePrices(qb.subQuery()), "nprices", "q.securityId = nprices.sid")
-            .where(`q.date <= DATE_SUB(nprices.newestDate, INTERVAL ${intvl})`)
-            .groupBy("nprices.isin")
-            .addGroupBy("nprices.ename");
-    }
-
-    /**
-     * Query builder for the subquery that returns the share prices for the newest date for each of the securities.
-     *
-     * @param qb the query builder of the calling query
-     * @returns the query builder for the subquery
-     *
-     * SQL equivalent:
-     * ```sql
-     * SELECT ndates.sid, ndates.isin, ndates.sname, ndates.itype, ndates.ename, ndates.newestDate, q.quote AS newestPrice
-     * FROM quotes AS q
-     * LEFT JOIN (
-     *     -- the newest dates for each security
-     *     SELECT s.id AS sid, s.isin AS isin, s.name AS sname, e.name AS ename, MAX(q.date) AS newestDate
-     *     FROM quotes AS q
-     *     LEFT JOIN securities AS s ON q.securityId = s.id
-     *     LEFT JOIN exchanges AS e ON q.exchangeId = e.id
-     *     GROUP BY s.isin, e.name
-     * ) AS ndates ON q.securityId = ndates.sid
-     * WHERE q.date = ndates.newestDate
-     * ```
-     */
-    private subQueryNewestSharePrices(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
-        return qb
-            .select([
-                "ndates.sid",
-                "ndates.isin",
-                "ndates.sname",
-                "ndates.itype",
-                "ndates.ename",
-                "ndates.newestDate",
-                "q.quote AS newestPrice"
-            ])
-            .from(QuoteData, "q")
-            .leftJoin((qb) => this.subQueryMinMaxDates(qb.subQuery()), "ndates", "q.securityId = ndates.sid")
-            .where("q.date = ndates.newestDate");
     }
 
     /**
@@ -361,4 +193,4 @@ class QuoteDataService {
     }
 }
 
-export { PerformanceIntervalDTO, PerformanceQuotesDTO, QuoteDataService, QuoteCountDTO };
+export { QuoteDataService, QuoteCountDTO };
