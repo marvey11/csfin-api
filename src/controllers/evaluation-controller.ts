@@ -2,21 +2,25 @@ import { Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import { Get, JsonController, QueryParam, Res } from "routing-controllers";
 import { Service } from "typedi";
-import { RSLevyResponseData, RSLevyService } from "../services";
-import { EvaluationService } from "../services/evaluation-service";
-import { PerformanceIntervalDTO } from "../services/quote-service";
+import {
+    PerformanceEvaluationService,
+    PerformanceInterval,
+    PerformanceResponseData,
+    RSLevyResponseData,
+    RSLevyService
+} from "../services";
 
 @Service()
 @JsonController()
 class EvaluationController {
-    constructor(private service: EvaluationService, private rslService: RSLevyService) {}
+    constructor(private perfService: PerformanceEvaluationService, private rslService: RSLevyService) {}
 
-    @Get("/evaluate/performance")
+    @Get("/evaluate/performance-data")
     async evaluatePerformance(
-        @QueryParam("interval") interval: PerformanceIntervalDTO = { count: 1, unit: "year" },
+        @QueryParam("interval") interval: PerformanceInterval = { count: 1, unit: "year" },
         @Res() response: Response
     ): Promise<Response> {
-        const data = await this.service.evaluatePerformance(interval);
+        const data: PerformanceResponseData[] = await this.perfService.getPerformanceData(interval);
         return response.status(StatusCodes.OK).send(data);
     }
 
