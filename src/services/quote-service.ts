@@ -7,7 +7,7 @@ import { QuoteData, Security } from "../entities";
 import { ExchangeService } from "./exchange-service";
 import { SecuritiesService } from "./security-service";
 
-type QuoteCountDTO = {
+type QuoteCountData = {
     isin: string;
     exchange: string;
     count: number;
@@ -142,17 +142,15 @@ class QuoteDataService {
      * @param isin the security's ISIN
      * @param exchangeID the exchange ID
      * @returns the number of the quotes stored in the database for the security and exchange combination
-     *
-     * SQL equivalent:
-     * ```sql
-     * SELECT s.isin AS isin, e.name AS name, COUNT(*) AS count FROM quotes AS q INNER JOIN securities AS s ON q.securityId = s.id INNER JOIN exchanges AS e ON q.exchangeId = e.id GROUP BY s.id, e.id;
-     * ```
      */
-    async getQuoteCount(): Promise<QuoteCountDTO[]> {
-        return this.createJoinedTablesQuery()
+    async getQuoteCount(): Promise<QuoteCountData[]> {
+        return this.repository
+            .createQueryBuilder("q")
+            .select("s.isin ", "isin")
+            .innerJoin("q.security", "s")
+            .innerJoin("q.exchange", "e")
             .groupBy("s.id")
             .addGroupBy("e.id")
-            .select("s.isin ", "isin")
             .addSelect("e.name ", "exchange")
             .addSelect("COUNT(*) ", "count")
             .getRawMany()
@@ -193,4 +191,4 @@ class QuoteDataService {
     }
 }
 
-export { QuoteDataService, QuoteCountDTO };
+export { QuoteDataService, QuoteCountData };
