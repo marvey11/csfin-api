@@ -2,7 +2,7 @@ import config from "config";
 import moment from "moment";
 import { Service } from "typedi";
 import { getRepository, Repository, SelectQueryBuilder } from "typeorm";
-import { AddQuoteDataRequest, NewestDatesOptions, NewestSharePriceDateDTO, RSLevyWeeklyData } from "../dtos";
+import { AddQuoteDataRequest, NewestDatesOptions, NewestSharePriceDateDTO } from "../dtos";
 import { QuoteData, Security } from "../entities";
 import { ExchangeService } from "./exchange-service";
 import { SecuritiesService } from "./security-service";
@@ -111,88 +111,12 @@ class QuoteDataService {
             );
     }
 
-    async getRSLevyData(): Promise<RSLevyWeeklyData[]> {
-        return this.repository
-            .createQueryBuilder("q")
-            .select([
-                "wkcls.isin",
-                "wkcls.sname",
-                "wkcls.itype",
-                "wkcls.ename",
-                "wkcls.lastDayOfWeek",
-                "q.quote AS lastPriceOfWeek"
-            ])
-            .leftJoin((qb) => this.subqueryByLastOfWeek(qb.subQuery()), "wkcls", "q.securityId = wkcls.sid")
-            .where("q.date = wkcls.lastDayOfWeek")
-            .groupBy("wkcls.isin")
-            .addGroupBy("wkcls.ename")
-            .addGroupBy("wkcls.lastDayOfWeek")
-            .getRawMany()
-            .then((data) =>
-                data.map((x) => ({
-                    securityISIN: x.isin,
-                    securityName: x.sname,
-                    instrumentType: x.itype,
-                    exchangeName: x.ename,
-                    lastDayOfWeek: new Date(x.lastDayOfWeek),
-                    lastPriceOfWeek: Number(x.lastPriceOfWeek)
-                }))
-            );
-    }
-
-    subqueryByLastOfWeek(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
+    getMinMaxDates(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
         return qb
-            .select([
-                "byweek.sid",
-                "byweek.isin",
-                "byweek.sname",
-                "byweek.itype",
-                "byweek.ename",
-                "MAX(q.date) AS lastDayOfWeek"
-            ])
+            .select(["q.securityId AS sid", "q.exchangeId AS eid", "MIN(q.date) AS min_date", "MAX(q.date) AS max_date"])
             .from(QuoteData, "q")
-            .leftJoin((qb) => this.subqueryLast28Weeks(qb.subQuery()), "byweek", "q.securityId = byweek.sid")
-            .where("YEARWEEK(q.date, 3) = byweek.yearnweek")
-            .groupBy("byweek.isin")
-            .addGroupBy("byweek.ename")
-            .addGroupBy("byweek.yearnweek");
-    }
-
-    subqueryLast28Weeks(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
-        return qb
-            .select([
-                "fridates.sid",
-                "fridates.isin",
-                "fridates.sname",
-                "fridates.itype",
-                "fridates.ename",
-                "YEARWEEK(q.date, 3) AS yearnweek"
-            ])
-            .from(QuoteData, "q")
-            .leftJoin((qb) => this.newestFriday(qb.subQuery()), "fridates", "q.securityId = fridates.sid")
-            .where("q.date > DATE_SUB(fridates.newestFriday, INTERVAL 28 week)") // get one more, just in case
-            .andWhere("q.date <= fridates.newestFriday")
-            .groupBy("fridates.isin")
-            .addGroupBy("fridates.ename")
-            .addGroupBy("YEARWEEK(q.date, 3)");
-    }
-
-    private newestFriday(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
-        return qb
-            .select([
-                "s.id AS sid",
-                "s.isin AS isin",
-                "s.name AS sname",
-                "s.type AS itype",
-                "e.name AS ename",
-                "MAX(q.date) AS newestFriday"
-            ])
-            .from(QuoteData, "q")
-            .leftJoin("q.security", "s")
-            .leftJoin("q.exchange", "e")
-            .where("WEEKDAY(q.date) = 4")
-            .groupBy("s.isin")
-            .addGroupBy("e.name");
+            .groupBy("sid")
+            .addGroupBy("eid");
     }
 
     /**
@@ -359,22 +283,16 @@ class QuoteDataService {
      * @param qb the query builder of the calling query
      * @returns the query builder for the subquery
      *
-     * SQL equivalent:
-     * ```sql
-     * SELECT s.id AS sid, s.isin AS isin, s.name AS sname, s.type AS itype, e.name AS ename, MIN(q.date) AS oldestDate, MAX(q.date) AS newestDate
-     * FROM quotes AS q
-     * LEFT JOIN securities AS s ON q.securityId = s.id
-     * LEFT JOIN exchanges AS e ON q.exchangeId = e.id
-     * GROUP BY s.isin, e.name
-     * ```
+     * For the SQL equivalent see docs/database.md
      */
     private subQueryMinMaxDates(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
         return qb
             .select([
                 "s.id AS sid",
-                "s.isin AS isin",
+                "s.isin as isin",
                 "s.name AS sname",
                 "s.type AS itype",
+                "e.id AS eid",
                 "e.name AS ename",
                 "MIN(q.date) AS oldestDate",
                 "MAX(q.date) AS newestDate"
@@ -382,8 +300,8 @@ class QuoteDataService {
             .from(QuoteData, "q")
             .leftJoin("q.security", "s")
             .leftJoin("q.exchange", "e")
-            .groupBy("s.isin")
-            .addGroupBy("e.name");
+            .groupBy("sid")
+            .addGroupBy("eid");
     }
 
     /**
