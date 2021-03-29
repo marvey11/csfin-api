@@ -19,6 +19,12 @@ class EvaluationController {
         const data = await this.service.evaluatePerformance(interval);
         return response.status(StatusCodes.OK).send(data);
     }
+
+    @Get("/evaluate/rsl-data")
+    async getRSLevyData(@Res() response: Response): Promise<Response> {
+        const data = await this.service.getRSLevyData();
+        return response.status(StatusCodes.OK).send(data);
+    }
 }
 
 export { EvaluationController };
