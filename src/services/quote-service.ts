@@ -161,19 +161,38 @@ class QuoteDataService {
     subqueryLast28Weeks(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
         return qb
             .select([
-                "ondates.sid",
-                "ondates.isin",
-                "ondates.sname",
-                "ondates.itype",
-                "ondates.ename",
+                "fridates.sid",
+                "fridates.isin",
+                "fridates.sname",
+                "fridates.itype",
+                "fridates.ename",
                 "YEARWEEK(q.date, 3) AS yearnweek"
             ])
             .from(QuoteData, "q")
-            .leftJoin((qb) => this.subQueryMinMaxDates(qb.subQuery()), "ondates", "q.securityId = ondates.sid")
-            .where("q.date > DATE_SUB(ondates.newestDate, INTERVAL 30 week)") // get a few more weeks than the required 27, just in case
-            .groupBy("ondates.isin")
-            .addGroupBy("ondates.ename")
+            .leftJoin((qb) => this.newestFriday(qb.subQuery()), "fridates", "q.securityId = fridates.sid")
+            .where("q.date > DATE_SUB(fridates.newestFriday, INTERVAL 28 week)") // get one more, just in case
+            .andWhere("q.date <= fridates.newestFriday")
+            .groupBy("fridates.isin")
+            .addGroupBy("fridates.ename")
             .addGroupBy("YEARWEEK(q.date, 3)");
+    }
+
+    private newestFriday(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
+        return qb
+            .select([
+                "s.id AS sid",
+                "s.isin AS isin",
+                "s.name AS sname",
+                "s.type AS itype",
+                "e.name AS ename",
+                "MAX(q.date) AS newestFriday"
+            ])
+            .from(QuoteData, "q")
+            .leftJoin("q.security", "s")
+            .leftJoin("q.exchange", "e")
+            .where("WEEKDAY(q.date) = 4")
+            .groupBy("s.isin")
+            .addGroupBy("e.name");
     }
 
     /**
