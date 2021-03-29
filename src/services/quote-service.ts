@@ -89,56 +89,27 @@ class QuoteDataService {
 
     async getNewestDates(options: NewestDatesOptions): Promise<NewestSharePriceDateDTO[]> {
         const datesOnly = options && options["date-only"];
-        return this.subQueryMinMaxDates(this.repository.createQueryBuilder().subQuery())
-            .getRawMany()
-            .then((data) =>
-                data.map((x) => {
-                    const ndate = new Date(x.newestDate);
-                    const newestDateString = datesOnly ? moment(ndate).format("YYYY-MM-DD") : ndate.toISOString();
-                    return { isin: x.isin, exchange: x.ename, newestDate: newestDateString };
-                })
-            );
-    }
 
-    getMinMaxDates(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
-        return qb
-            .select([
-                "q.securityId AS sid",
-                "q.exchangeId AS eid",
-                "MIN(q.date) AS min_date",
-                "MAX(q.date) AS max_date"
-            ])
-            .from(QuoteData, "q")
-            .groupBy("sid")
-            .addGroupBy("eid");
-    }
-
-    /**
-     * Query builder for the subquery that returns both the oldest and the newest date for each of the securities that a share price is
-     * stored with.
-     *
-     * @param qb the query builder of the calling query
-     * @returns the query builder for the subquery
-     *
-     * For the SQL equivalent see docs/database.md
-     */
-    private subQueryMinMaxDates(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
-        return qb
-            .select([
-                "s.id AS sid",
-                "s.isin as isin",
-                "s.name AS sname",
-                "s.type AS itype",
-                "e.id AS eid",
-                "e.name AS ename",
-                "MIN(q.date) AS oldestDate",
-                "MAX(q.date) AS newestDate"
-            ])
-            .from(QuoteData, "q")
+        const query = this.repository
+            .createQueryBuilder("q")
+            .select(["s.isin AS isin", "e.name AS ename", "max_date AS newest_date"])
             .leftJoin("q.security", "s")
             .leftJoin("q.exchange", "e")
+            .leftJoin(
+                (qb) => this.getMinMaxDates(qb.subQuery()),
+                "mmdates",
+                "q.securityId = sid AND q.exchangeId = eid"
+            )
             .groupBy("sid")
             .addGroupBy("eid");
+
+        return query.getRawMany().then((data) =>
+            data.map((x) => {
+                const ndate = new Date(x.newest_date);
+                const newestDateString = datesOnly ? moment(ndate).format("YYYY-MM-DD") : ndate.toISOString();
+                return { isin: x.isin, exchange: x.ename, newestDate: newestDateString };
+            })
+        );
     }
 
     /**
@@ -160,6 +131,19 @@ class QuoteDataService {
             .addSelect("COUNT(*) ", "count")
             .getRawMany()
             .then((rows) => rows.map((x) => ({ isin: x.isin, exchange: x.exchange, count: Number(x.count) })));
+    }
+
+    getMinMaxDates(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
+        return qb
+            .select([
+                "q.securityId AS sid",
+                "q.exchangeId AS eid",
+                "MIN(q.date) AS min_date",
+                "MAX(q.date) AS max_date"
+            ])
+            .from(QuoteData, "q")
+            .groupBy("sid")
+            .addGroupBy("eid");
     }
 }
 
