@@ -22,7 +22,12 @@ class QuoteDataService {
     }
 
     async get(isin: string, exchangeID: number, startDate?: string, endDate?: string): Promise<QuoteData[]> {
-        const query = this.createFilteredRowsQuery(isin, exchangeID);
+        const query = this.repository
+            .createQueryBuilder("q")
+            .innerJoin("q.security", "s")
+            .innerJoin("q.exchange", "e")
+            .where("s.isin = :isin", { isin: isin })
+            .andWhere("e.id = :exid", { exid: exchangeID });
 
         if (startDate) {
             const startTimeStamp: number = Date.parse(startDate);
@@ -155,39 +160,6 @@ class QuoteDataService {
             .addSelect("COUNT(*) ", "count")
             .getRawMany()
             .then((rows) => rows.map((x) => ({ isin: x.isin, exchange: x.exchange, count: Number(x.count) })));
-    }
-
-    /**
-     * Convenience method that returns a (partial) query joining the quotes and the securities and exchanges tables.
-     *
-     * @returns The query builder instance.
-     *
-     * SQL equivalent:
-     * ```sql
-     * SELECT * FROM quotes AS q INNER JOIN securities AS s ON q.securityId = s.id INNER JOIN exchanges AS e ON q.exchangeId = e.id;
-     * ```
-     */
-    private createJoinedTablesQuery(): SelectQueryBuilder<QuoteData> {
-        return this.repository.createQueryBuilder("q").innerJoin("q.security", "s").innerJoin("q.exchange", "e");
-    }
-
-    /**
-     * Convenience method that returns a (partial) query with filtered rows based on a combination of ISIN and
-     * exchange ID.
-     *
-     * @param isin The security's ISIN.
-     * @param exchangeID The ID of the exchange we want the quotes for
-     * @returns The query builder instance
-     *
-     * SQL equivalent:
-     * ```sql
-     * SELECT * FROM quotes AS q INNER JOIN securities AS s ON q.securityId = s.id INNER JOIN exchanges AS e ON q.exchangeId = e.id WHERE s.isin = {isin} AND e.id = {exchangeID};
-     * ```
-     */
-    private createFilteredRowsQuery(isin: string, exchangeID: number): SelectQueryBuilder<QuoteData> {
-        return this.createJoinedTablesQuery()
-            .where("s.isin = :isin", { isin: isin })
-            .andWhere("e.id = :exid", { exid: exchangeID });
     }
 }
 
