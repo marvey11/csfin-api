@@ -37,7 +37,7 @@ class RSLevyService {
             items: RSLevyWeeklyData[];
         };
 
-        const queryResult: RSLevyWeeklyData[] = await this.getLevyImproved();
+        const queryResult: RSLevyWeeklyData[] = await this.getRawRSLevyData();
 
         // partition the array of query results into an array where all elements with the same ISIN
         // and exchange are grouped together
@@ -91,7 +91,7 @@ class RSLevyService {
         return levyResult;
     }
 
-    private async getLevyImproved(): Promise<RSLevyWeeklyData[]> {
+    private async getRawRSLevyData(): Promise<RSLevyWeeklyData[]> {
         return this.connection
             .createQueryBuilder()
             .select([
