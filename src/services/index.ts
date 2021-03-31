@@ -5,5 +5,5 @@ export {
     PerformanceResponseData
 } from "./performance-evaluation.service";
 export { QuoteDataService } from "./quote-service";
-export { RSLevyResponseData, RSLevyService } from "./rsleval.service";
+export { RSLevyAlgorithm, RSLevyResponseData, RSLevyService } from "./rsleval.service";
 export { SecuritiesService } from "./security-service";
