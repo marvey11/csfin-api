@@ -6,6 +6,7 @@ import {
     PerformanceEvaluationService,
     PerformanceInterval,
     PerformanceResponseData,
+    RSLevyAlgorithm,
     RSLevyResponseData,
     RSLevyService
 } from "../services";
@@ -25,8 +26,11 @@ class EvaluationController {
     }
 
     @Get("/evaluate/rsl-data")
-    async getRSLevyData(@Res() response: Response): Promise<Response> {
-        const data: RSLevyResponseData[] = await this.rslService.getRSLevyData();
+    async getRSLevyData(
+        @QueryParam("algorithm") algorithm: RSLevyAlgorithm = RSLevyAlgorithm.WEEKLY,
+        @Res() response: Response
+    ): Promise<Response> {
+        const data: RSLevyResponseData[] = await this.rslService.getRSLevyData(algorithm);
         return response.status(StatusCodes.OK).send(data);
     }
 }

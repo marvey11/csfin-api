@@ -4,6 +4,11 @@ import { Connection, getConnection, SelectQueryBuilder } from "typeorm";
 import { QuoteData } from "../entities";
 import { QuoteDataService } from "./quote-service";
 
+enum RSLevyAlgorithm {
+    WEEKLY = "weekly",
+    DAILY = "daily"
+}
+
 type RSLevyResponseData = {
     securityISIN: string;
     securityName: string;
@@ -30,7 +35,15 @@ class RSLevyService {
         this.connection = getConnection(config.get("ormconfig.connection"));
     }
 
-    async getRSLevyData(): Promise<RSLevyResponseData[]> {
+    async getRSLevyData(algorithm: RSLevyAlgorithm): Promise<RSLevyResponseData[]> {
+        if (algorithm == RSLevyAlgorithm.DAILY) {
+            return this.getRSLevyDaily();
+        }
+
+        return this.getRSLevyWeekly();
+    }
+
+    private async getRSLevyWeekly(): Promise<RSLevyResponseData[]> {
         type TempElemType = {
             isin: string;
             exchange: string;
@@ -171,6 +184,81 @@ class RSLevyService {
             .groupBy("sid")
             .addGroupBy("eid");
     }
+
+    private async getRSLevyDaily(): Promise<RSLevyResponseData[]> {
+        return this.connection
+            .createQueryBuilder()
+            .select("sid")
+            .addSelect("s.isin", "isin")
+            .addSelect("s.name", "sname")
+            .addSelect("s.type", "itype")
+            .addSelect("eid")
+            .addSelect("e.name", "ename")
+            .addSelect("max_date")
+            .addSelect("q.quote", "close_price")
+            .from(QuoteData, "q")
+            .innerJoin("q.security", "s")
+            .innerJoin("q.exchange", "e")
+            .innerJoin(
+                (qb) => this.getLatestDate200(qb.subQuery()),
+                "md200",
+                "q.securityId = md200.sid AND q.exchangeId = md200.eid"
+            )
+            .where("q.date = md200.max_date")
+            .getRawMany()
+            .then(async (data) => {
+                const result: RSLevyResponseData[] = [];
+
+                for (const row of data) {
+                    const { sid, isin, sname, itype, eid, ename, max_date, close_price } = row;
+                    const avg = await this.connection
+                        .createQueryBuilder()
+                        .select(["sid", "eid"])
+                        .addSelect("AVG(lat200.price)", "average")
+                        .from((qb) => this.getLatest200Rows(qb.subQuery(), sid, eid), "lat200")
+                        .getRawOne();
+
+                    result.push({
+                        securityISIN: isin,
+                        securityName: sname,
+                        instrumentType: itype,
+                        exchangeName: ename,
+                        newestWeeklyClose: new Date(max_date),
+                        rslValue: Number(close_price / avg.average)
+                    });
+                }
+
+                return result;
+            });
+    }
+
+    private getLatest200Rows(
+        qb: SelectQueryBuilder<QuoteData>,
+        sid: number,
+        eid: number
+    ): SelectQueryBuilder<QuoteData> {
+        return qb
+            .select("q.securityId", "sid")
+            .addSelect("q.exchangeId", "eid")
+            .addSelect("q.date", "qdate")
+            .addSelect("q.quote", "price")
+            .from(QuoteData, "q")
+            .where("q.securityId = :sid", { sid: sid })
+            .andWhere("q.exchangeId = :eid", { eid: eid })
+            .orderBy("q.date", "DESC")
+            .limit(200);
+    }
+
+    private getLatestDate200(qb: SelectQueryBuilder<QuoteData>): SelectQueryBuilder<QuoteData> {
+        return qb
+            .select("q.securityId", "sid")
+            .addSelect("q.exchangeId", "eid")
+            .addSelect("MAX(q.date)", "max_date")
+            .from(QuoteData, "q")
+            .groupBy("sid")
+            .addGroupBy("eid")
+            .having("COUNT(*) >= 200");
+    }
 }
 
-export { RSLevyService, RSLevyResponseData };
+export { RSLevyAlgorithm, RSLevyResponseData, RSLevyService };
